@@ -22,7 +22,6 @@ export class UserService {
     const user = this.userRepo.findOne({
       where: { email },
     });
-
     return user;
   }
 
@@ -37,9 +36,7 @@ export class UserService {
   async verifyUpdateUser(email: string, otpCode: string) {
     const user = await this.findUserByEmail(email);
     if (!user) throw new BadRequestException('Invalid Otp');
-    if (user.isVerified) {
-      throw new BadRequestException('User already verified');
-    }
+    if (user.isVerified) throw new BadRequestException('User already verified');
 
     if (user.confirmEmailOtp !== otpCode)
       throw new BadRequestException('Invalid Otp');
@@ -56,13 +53,16 @@ export class UserService {
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
     user.password = hashedPassword;
+    this.userRepo.save(user);
     return true;
   }
 
   async resendCode(email: string, otpCode: string) {
     const user = await this.findUserByEmail(email);
-
     if (!user) throw new NotFoundException('Invalid Email');
+    if (user.isVerified) {
+      throw new BadRequestException('User already verified');
+    }
     user.confirmEmailOtp = otpCode;
     await this.userRepo.save(user);
   }

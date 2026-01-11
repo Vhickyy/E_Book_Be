@@ -23,7 +23,7 @@ export class TokenService {
 
       return payload.sub;
     } catch (err) {
-      throw this.catchTokenError(err, 'Invalid Otp');
+      throw this.catchTokenError(err, 'Invalid Token or Otp.');
     }
   }
 
@@ -39,7 +39,7 @@ export class TokenService {
 
   catchTokenError(err: { name: string }, msg?: string) {
     if (err.name === 'TokenExpiredError') {
-      throw new BadRequestException('Verification token expired');
+      throw new BadRequestException('Token expired');
     }
     throw new BadRequestException(msg || 'Invalid token');
   }

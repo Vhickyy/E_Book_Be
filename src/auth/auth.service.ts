@@ -26,7 +26,6 @@ export class AuthService {
 
   async registerUser(userPayload: RegisterUserDto) {
     const findUser = await this.userService.findUserByEmail(userPayload.email);
-
     if (findUser) throw new ConflictException('Email already exist.');
     try {
       if (userPayload.avatarPublicId) {
@@ -53,21 +52,15 @@ export class AuthService {
       return { sucess: true, token, otp };
     } catch (error) {
       if (error.message.includes('Resource not found'))
-        throw new NotFoundException('Invalid Avatar Id');
+        throw new BadRequestException('Invalid Avatar Id');
       throw new InternalServerErrorException('Internal server error');
     }
   }
 
   async loginUser(user: User) {
     try {
-      // const user = await this.userService.findUserByEmail(email);
-
-      // if (!user || !bcrypt.compare(user.password, userPassword)) {
-      //   throw new BadRequestException('Invalid Credentials');
-      // }
-
       const accessToken = await this.jwtService.signAsync({ sub: user.id });
-      // // does not need user id, random crypto hash
+      // does not need user id, random crypto hash
       const refreshToken = await this.tokenService.generateRefreshToken(
         user.id,
       );
@@ -78,7 +71,10 @@ export class AuthService {
         rest,
       };
     } catch (error) {
-      throw error;
+      if (error.message) {
+        throw error;
+      }
+      throw new InternalServerErrorException('Internal server error');
     }
   }
 
@@ -88,18 +84,25 @@ export class AuthService {
       await this.userService.verifyUpdateUser(email, otpCode);
       return { success: true, message: 'Email verified successfully.' };
     } catch (error) {
-      throw error;
+      if (error.message) {
+        throw error;
+      }
+      throw new InternalServerErrorException('Internal server error');
     }
   }
 
   async resendVerifyEmailCode({ email }: { email: string }) {
     try {
+      // check if it is time to resend another link and limit how many times the user can try this with rate limiter
       const otp = Math.floor(100000 + Math.random() * 900000);
       await this.userService.resendCode(email, otp.toString());
       const token = await this.tokenService.generateEmailToken(email);
 
       return { success: true, token, otp };
     } catch (error) {
+      if (error.message) {
+        throw error;
+      }
       throw new InternalServerErrorException('Internal server error');
     }
   }
@@ -114,6 +117,9 @@ export class AuthService {
       const token = await this.tokenService.generateEmailToken(email);
       return { success: true, token };
     } catch (error) {
+      if (error.message) {
+        throw error;
+      }
       throw new InternalServerErrorException('Internal server error');
     }
   }
@@ -123,31 +129,36 @@ export class AuthService {
     return this.forgetPassword({ email });
   }
 
-  async verifyForgetPassword({ token }: { token: string }) {
-    try {
-      await this.tokenService.verifyEmailToken(token);
-      return { success: true, message: 'Proceed to reset password.' };
-    } catch (error) {
-      throw error;
-    }
-  }
+  // async verifyForgetPassword({ token }: { token: string }) {
+  //   try {
+  //     await this.tokenService.verifyEmailToken(token);
+  //     return { success: true, message: 'Proceed to reset password.' };
+  //   } catch (error) {
+  //     throw error;
+  //   }
+  // }
 
   async resetPassword({
     newPassword,
     confirmNewPassword,
-    email,
+    token,
   }: {
     newPassword: string;
     confirmNewPassword: string;
-    email: string;
+    token: string;
   }) {
     try {
+      const email = await this.tokenService.verifyEmailToken(token);
       if (newPassword !== confirmNewPassword) {
         throw new BadRequestException('Password do not match');
       }
       await this.userService.changePassword(newPassword, email);
+      return { success: true, message: 'Password Changed Successfully.' };
     } catch (error) {
-      throw new InternalServerErrorException('Something went wrong');
+      if (error.message) {
+        throw error;
+      }
+      throw new InternalServerErrorException('Internal server error');
     }
   }
 
@@ -155,7 +166,8 @@ export class AuthService {
     try {
       const { email, password } = userPayload;
       const user = await this.userService.findUserByEmail(email);
-      if (!user) throw new NotFoundException('Invalid Email');
+
+      if (!user) throw new NotFoundException('Invalid Email and Password');
       const isCorrectPassword = await bcrypt.compare(password, user.password);
       if (!user || !isCorrectPassword) {
         throw new UnauthorizedException('Invalid email and password.');
@@ -166,7 +178,10 @@ export class AuthService {
       }
       return { id: user.id };
     } catch (error) {
-      throw new InternalServerErrorException('Something went wrong');
+      if (error.message) {
+        throw error;
+      }
+      throw new InternalServerErrorException('Internal server error');
     }
   }
 
@@ -179,6 +194,9 @@ export class AuthService {
       );
       return { avatarUrl: cloudinaryResponse.public_id };
     } catch (error) {
+      if (error.message) {
+        throw error;
+      }
       throw new InternalServerErrorException('Error uploading avatar');
     }
   }
